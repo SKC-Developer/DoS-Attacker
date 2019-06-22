@@ -142,7 +142,7 @@ int main(int argc,char**argv)
 	victim.ai_protocol = IPPROTO_TCP;
 	WSADATA wsa;
 	DWORD delay = 0;
-	size_t pkg_size = 1, threads_num = 1;
+	size_t pkg_size = 1;
 	HANDLE threads[2];
 
 	if (argc != 5)
@@ -171,7 +171,7 @@ int main(int argc,char**argv)
 
 	delay = atoi(argv[4]);
 
-	printf("You have chose a delay of %llu and %llu threads.\nContinue? ", (unsigned long long)delay, threads_num);
+	printf("You have chose to attack \'%s:%s\' with a package size of %llu and a delay of %llu.\nContinue? ", argv[1], argv[2], (unsigned long long)pkg_size, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
@@ -220,9 +220,8 @@ int main(int argc,char**argv)
 		DispatchMessage(&msg);
 	}
 
-	for (size_t l = 0; l < threads_num + 1; l++)
-		if (threads[l])
-			CloseHandle(threads[l]);
+	CloseHandle(threads[0]);
+	CloseHandle(threads[1]);
 
 	closesocket(sock);
 	WSACleanup();
