@@ -6,18 +6,20 @@ A simple cmd DoS Attacker for Windows.
 *"Dos Attacker.exe" target_ip service_name package_size delay*
 
 *target_ip* is the IP address of your victim. You can get it using *ping www.example.com -a*.  
-*service_name* is the name of the port or service which you want to use to attack the victim.  
+*service_name* is the name of the service or the port number which you want to use to attack the victim.
 *package_size* is the size of the package that will be send to the victim each time.  
 *delay* is the time (in milliseconds) that every thread waits between each package.
 
 **Example:**  
-*"DoS Attacker.exe" 10.100.102.1 http 8195 10 0*
-This will create 10 threads that send 8195 bytes each to *10.100.102.1* as fast as they can.
+*"DoS Attacker.exe" 10.100.102.1 http 8195 0*  
+The program will attack 10.100.102.1:80 with package size of 8195 and no delay.
+
+This example works too: *"DoS Attacker.exe" 10.100.102.1 80 8195 0*
 
 **Important:**
 
 package_size can't be more than SO_MAX_MSG_SIZE (it's usually 8195).  
-You can get a list of services from *'%WINDIR%\\system32\\drivers\\etc\\services'*. You can add services to this file.  
+You can get the list of services from *'%WINDIR%\\system32\\drivers\\etc\\services'*. You can add services to this file.  
 
 ## How it works:
 The program connects to the server, using the service you have chose.  
