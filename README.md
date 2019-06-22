@@ -20,6 +20,7 @@ This example works too: *"DoS Attacker.exe" 10.100.102.1 80 8195 0*
 
 package_size can't be more than SO_MAX_MSG_SIZE (it's usually 8195).  
 You can get the list of services from *'%WINDIR%\\system32\\drivers\\etc\\services'*. You can add services to this file.  
+You can use *Port Scanner* (https://github.com/SKC-Developer/Port-Scanner.git) to get a list of all the open ports of your victim.
 
 ## How it works:
 The program connects to the server, using the service you have chose.  
