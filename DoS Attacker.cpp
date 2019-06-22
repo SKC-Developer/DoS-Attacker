@@ -178,7 +178,10 @@ int main(int argc,char**argv)
 
 	INT res = getaddrinfo(argv[1], argv[2], &victim, &result);
 	if (res)
-		printf("%d\n", res);
+	{
+		printf("Error %u in getting address info.\n", res);
+		return -1;
+	}
 
 	for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next)
 	{
