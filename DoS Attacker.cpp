@@ -53,7 +53,7 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
 				break;
 			default:
-				printf("\nUnknown error \'%u\' has occord.\n", res);
+				printf("\nError \'%u\' has occord.\n", res);
 			}
 			exit(-1);
 		}
@@ -132,7 +132,7 @@ DWORD WINAPI SpeedThread(LPVOID lParam)
 
 int main(int argc,char**argv)
 {
-	//Dos_Attacker target_ip service_name package_size threads_num delay
+	//Dos_Attacker target_ip service_name package_size delay
 
 	BYTE* buff = NULL;
 	SOCKET sock = INVALID_SOCKET;
@@ -223,12 +223,12 @@ int main(int argc,char**argv)
 		DispatchMessage(&msg);
 	}
 
+	//close all the threads
 	CloseHandle(threads[0]);
 	CloseHandle(threads[1]);
 
 	closesocket(sock);
 	WSACleanup();
-	free(threads);
 
 	return 0;
 }
