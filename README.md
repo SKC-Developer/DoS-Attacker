@@ -30,5 +30,5 @@ The program connects to the server, using the mode you chose.
 Next, it creates a thread that attack the victim. This thread attacks the victim as fast as it can.  
 If any error occors (let's say, the victim closes the connection) the thread stops and the program closes.
 
-If you want to trick a victim with DoS protection, you should use a delay and perform a DDoS attack (attack from multiple IPs).  
+If you want to trick a victim that has a DoS protection, you should use a delay and perform a DDoS attack (attack from multiple IPs).  
 Your connection speed is also important for your attack success. Slow connection won't affect the victim.
