@@ -1,5 +1,5 @@
 # DoS Attacker
-A simple cmd DoS Attacker for Windows.
+A simple cmd DoS Attacker for Windows that supports TCP and ICMP attacks.
 
 **Please note that most websites have DoS protection. You can use it to attack small websites and access points. Use it at your own risk.**
 ## Usage:
