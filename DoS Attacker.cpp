@@ -147,16 +147,9 @@ set:
 
 	//set
 	ErrChk(getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
-	if (info->pkg_size > max_pkg_size)
+	if (info->pkg_size > max_pkg_size && max_pkg_size)
 	{
-		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
-		run = false;
-		exit(-1);
-	}
-	ErrChk(getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
-	if (info->pkg_size > max_pkg_size)
-	{
-		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
+		printf("The packet size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
 		run = false;
 		exit(-1);
 	}
@@ -164,7 +157,7 @@ set:
 	ErrChk(setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
 	
 	//wait...
-	while (!start)Sleep(10);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
+	while (!start)Sleep(100);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
 	//attack!
 	while (run)
 	{
@@ -276,7 +269,7 @@ int main(int argc, char** argv)
 
 	if (mode_tcp)port = argv[3];
 	pkg_size = strtoul(argv[3 + mode_tcp], NULL, 10);
-	if (pkg_size <= 0 || (mode_tcp == false && pkg_size > 65467))
+	if (pkg_size <= 0 || (mode_tcp == false && (pkg_size > 65467 || pkg_size<sizeof(ICMP_Pkt))))
 	{
 		puts("Invalid packet size.\nThe packet size should be less than 65467 (when /icmp is used) and nonzero.");
 		return -1;
