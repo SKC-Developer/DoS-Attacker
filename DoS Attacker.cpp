@@ -332,7 +332,7 @@ int main(int argc, char** argv)
 
 	delay = strtoull(argv[5 + mode_tcp], NULL, 10);
 
-	printf("You have chose to attack \'%s:%s\' with a package size of %llu, a total of %llu threads (and sockets) and a delay of %llu.\nContinue? ", argv[1], (mode_tcp) ? port : "raw", (unsigned long long)pkg_size, threads_num, (unsigned long long)delay);
+	printf("You have chose to attack \'%s:%s\' with a package size of %llu, a total of %llu threads (and sockets) and a delay of %llu.\nContinue? ", argv[1], (mode_tcp) ? port : "ICMP", (unsigned long long)pkg_size, threads_num, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	//set the args for the threads
