@@ -5,7 +5,7 @@ A simple cmd DoS Attacker for Windows.
 ## Usage:
 *"Dos Attacker.exe" target_ip /mode args package_size threads delay*
 
-*target_ip* is the IP address of your victim. You can get it using *ping www.example.com -a*.  
+*target_ip* is the IP address or the domain name of your victim.  
 */mode* is the mode to use: */port* for TCP attack (args is the port) **or** */icmp* for ping attack (args is just nothing).  
 *package_size* is the size of the package that will be send to the victim each time. This size is limited according to the socket type: 65467 for */icmp* and 65536 for */port*.  
 *threads* is the number of threads that attack the victim.  
