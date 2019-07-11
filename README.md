@@ -11,7 +11,8 @@ A simple cmd DoS Attacker for Windows.
 *threads* is the number of threads that attack the victim.  
 *delay* is the time (in milliseconds) that every thread waits between each package.
 
-**Examples:**  
+**Usgae Examples:**  
+~~~
 *"DoS Attacker.exe" 10.100.102.1 /icmp 8192 100 0*  
 
 *"DoS Attacker.exe" www.example.com /icmp 65536 100 0*  
@@ -21,7 +22,7 @@ A simple cmd DoS Attacker for Windows.
 *"DoS Attacker.exe" 10.100.102.1 /port http 8195 50 0*
 
 *"DoS Attacker.exe" www.example.com /port http 32 4096 0*
-
+~~~
 ## How it works:
 The program connects to the server, using the mode you chose.  
 Next, it creates the threads that attack the victim. Those threads attacks the victim as fast as they can.  
