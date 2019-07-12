@@ -1,13 +1,19 @@
 # DoS Attacker
 A simple cmd DoS Attacker for Windows that supports TCP and ICMP attacks.
 
-**Please note that most websites have DoS protection. You can use it to attack small websites and access points. Use it at your own risk.**
+**Please note that most websites have DoS protection. You can use it to attack small websites and local devices. You should'nt harm anyone with this program. It is was made for learning purposes only. I take no responsibility for whatever you decide to do with it.**
+
+## Wait... What is this program good for? You just said that it's worthless!
+That's a good question!
+Well, you can't crash Google's servers with this (and you should'nt even try!), **but** this program is super effective in small networks. It can slow down (or even disable) the connection of the devices in a private network or cause a device to crash.  
+**And always remember, this program wasn't meant to be a weapon. Don't harm people with it.**
+
 ## Usage:
-*"Dos Attacker.exe" target_ip /mode args package_size threads delay*
+*"Dos Attacker.exe" target_ip /mode args packet_size threads delay*
 
 *target_ip* is the IP address or the domain name of your victim.  
 */mode* is the mode to use: */port* for TCP attack (args is the port) **or** */icmp* for ping attack (args is just nothing).  
-*package_size* is the size of the package that will be send to the victim each time. This size is limited according to the socket type: 65467 for */icmp* and 65536 for */port*.  
+*packet_size* is the size of the packet that will be send to the victim each time. This argument can be up to 65535 (and should be less to avoid WSAEMSGSIZE errors).  
 *threads* is the number of threads that attack the victim.  
 *delay* is the time (in milliseconds) that every thread waits between each package.
 
@@ -15,7 +21,7 @@ A simple cmd DoS Attacker for Windows that supports TCP and ICMP attacks.
 ~~~
 "DoS Attacker.exe" 10.100.102.1 /icmp 8192 100 0
 
-"DoS Attacker.exe" www.example.com /icmp 65536 100 0
+"DoS Attacker.exe" www.example.com /icmp 65507 100 0
 
 "DoS Attacker.exe" 10.100.102.1 /port 80 8195 1000 0
 
