@@ -103,6 +103,27 @@ void cls(HANDLE hConsole)
 	SetConsoleCursorPosition(hConsole, coordScreen);
 }
 
+uint16_t calc_chksum(void* data, size_t len)
+{
+	size_t left = len;
+	uint16_t* w = (uint16_t*)data;
+	uint32_t sum = 0;
+	while (left > 1)
+	{
+		sum += *(w++);
+		left -= sizeof(uint16_t);
+	}
+	if (left == 1)
+	{
+		uint16_t u;
+		*(uint8_t*)(&u) = *(uint8_t*)w;
+		sum += u;
+	}
+	sum = (sum >> 16) + (sum & 0xffff);
+	sum += (sum >> 16);
+	return ~sum;
+}
+
 //global vars for threads
 static size_t data = 0, pings = 0;
 static UINT exit_code = -1;
@@ -271,7 +292,7 @@ int main(int argc, char** argv)
 	pkg_size = strtoul(argv[3 + mode_tcp], NULL, 10);
 	if (pkg_size <= 0 || (mode_tcp == false && (pkg_size > 65467 || pkg_size<sizeof(ICMP_Pkt))))
 	{
-		puts("Invalid packet size.\nThe packet size should be less than 65467 (when /icmp is used) and nonzero.");
+		printf("Invalid packet size.\nThe packet size of this mode should be %s.\n", (mode_tcp) ? "nonzero" : "between 16 to 65467");
 		return -1;
 	}
 
@@ -293,18 +314,19 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		ICMP_Pkt* ipkg = (ICMP_Pkt*)buff;
-		if (ipkg == NULL)
+		ICMP_Pkt* ipkt = (ICMP_Pkt*)buff;
+		if (ipkt == NULL)
 		{
 			puts("Allocation error.");
 			return -1;
 		}
 		//set the packet
-		ipkg->type = 8;
-		ipkg->code = 0;
-		ipkg->un.echo.sequence = 0;
-		ipkg->un.echo.id = 0;
-		ipkg->checksum = 0;
+		ipkt->type = 8;
+		ipkt->code = 0;
+		ipkt->un.echo.sequence = 0;
+		ipkt->un.echo.id = 0;
+		ipkt->checksum = 0;
+		ipkt->checksum = calc_chksum(ipkt, sizeof(ICMP_Pkt));
 		//set the additional data
 		for (size_t l = sizeof(ICMP_Pkt); l < pkg_size; l++)
 			buff[l] = 'A';
