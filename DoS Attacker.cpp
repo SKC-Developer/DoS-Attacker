@@ -208,7 +208,7 @@ set:
 				continue;
 				break;
 			default:
-				printf("\nError \'%u\' has occord.\nCheck ", res);
+				printf("\nError \'%u\' has occord.\nCheck https://docs.microsoft.com/he-il/windows/win32/winsock/windows-sockets-error-codes-2 for specific error information.", res);
 			}
 			run = false;
 			exit(-1);
