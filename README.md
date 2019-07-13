@@ -11,7 +11,7 @@ Well, you can't crash Google's servers with this (and you should'nt even try!), 
 ## Usage:
 *"Dos Attacker.exe" target_ip /mode args packet_size threads delay*
 
-*target_ip* is the IP address or the domain name of your victim.  
+*victim* is the IP address or the domain name of your victim.  
 */mode* is the mode to use: */port* for TCP attack (args is the port) **or** */icmp* for ping attack (args is just nothing).  
 *packet_size* is the size of the packet that will be send to the victim each time. This argument can be up to 65535 (and should be less to avoid WSAEMSGSIZE errors).  
 *threads* is the number of threads that attack the victim.  
