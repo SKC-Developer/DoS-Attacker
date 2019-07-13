@@ -1,9 +1,10 @@
 # DoS Attacker
 A simple cmd DoS Attacker for Windows that supports TCP and ICMP attacks.
 
+## ATTENTION
 **Please note that most websites have DoS protection. You can use it to attack small websites and local devices. You should'nt harm anyone with this program. It is was made for learning purposes only. I take no responsibility for whatever you decide to do with it.**
 
-## Wait... What is this program good for? You just said that it's worthless!
+## Wait... What is this program good for?
 That's a good question!
 Well, you can't crash Google's servers with this (and you should'nt even try!), **but** this program is super effective in small networks. It can slow down (or even disable) the connection of the devices in a private network or cause a device to crash.  
 **And always remember, this program wasn't meant to be a weapon. Don't harm people with it.**
